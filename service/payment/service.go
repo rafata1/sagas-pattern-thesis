@@ -13,7 +13,7 @@ import (
 
 type IService interface {
 	ConsumePreparedOrders(ctx context.Context, stopAfter time.Duration)
-	Pay(ctx context.Context, event saga_event.PrepareInventoryEvent) error
+	Pay(ctx context.Context, event saga_event.OrderEvent) error
 	RelayMessage(ctx context.Context, limit int) error
 }
 
@@ -39,7 +39,7 @@ func (s service) ConsumePreparedOrders(ctx context.Context, stopAfter time.Durat
 			fmt.Printf("Received message: Topic: %s, Partition: %d, Offset: %d, Key: %s, Value: %s\n",
 				msg.Topic, msg.Partition, msg.Offset, string(msg.Key), string(msg.Value),
 			)
-			var event saga_event.PrepareInventoryEvent
+			var event saga_event.OrderEvent
 			err := json.Unmarshal(msg.Value, &event)
 			if err != nil {
 				panic(err)
@@ -60,7 +60,7 @@ func (s service) ConsumePreparedOrders(ctx context.Context, stopAfter time.Durat
 	}
 }
 
-func (s service) Pay(ctx context.Context, event saga_event.PrepareInventoryEvent) error {
+func (s service) Pay(ctx context.Context, event saga_event.OrderEvent) error {
 	// only pay with prepared order
 	if event.Status != model.OrderStatusPrepared {
 		return nil
@@ -81,20 +81,22 @@ func (s service) Pay(ctx context.Context, event saga_event.PrepareInventoryEvent
 			return err
 		}
 
-		var publishEvent saga_event.BillOrderEvent
+		var publishEvent saga_event.OrderEvent
 		if account.Balance >= event.Cost {
 			err = s.repo.UpdateBalance(ctx, event.CustomerID, account.Balance-event.Cost)
 			if err != nil {
 				return err
 			}
-			publishEvent = saga_event.BillOrderEvent{
+			publishEvent = saga_event.OrderEvent{
 				OrderID: event.OrderID,
 				Status:  model.OrderStatusBilled,
 			}
 		} else {
-			publishEvent = saga_event.BillOrderEvent{
-				OrderID: event.OrderID,
-				Status:  model.OrderStatusFailedExceedCreditLimit,
+			publishEvent = saga_event.OrderEvent{
+				OrderID:   event.OrderID,
+				Status:    model.OrderStatusFailedExceedCreditLimit,
+				ProductID: event.ProductID,
+				Amount:    event.Amount,
 			}
 		}
 

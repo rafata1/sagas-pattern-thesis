@@ -16,24 +16,28 @@ type IService interface {
 	RelayMessage(ctx context.Context, limit int) error
 	ConsumeBills(ctx context.Context, stopAfter time.Duration)
 	UpdateStatus(ctx context.Context, orderID int64, status model.OrderStatus) error
+	ConsumeInventory(ctx context.Context, stopAfter time.Duration)
 }
 
 func NewService(
 	repo IRepo,
 	producer kafka.IProducer,
 	billConsumer kafka.IConsumer,
+	inventoryConsumer kafka.IConsumer,
 ) IService {
 	return &service{
-		repo:         repo,
-		producer:     producer,
-		billConsumer: billConsumer,
+		repo:              repo,
+		producer:          producer,
+		billConsumer:      billConsumer,
+		inventoryConsumer: inventoryConsumer,
 	}
 }
 
 type service struct {
-	repo         IRepo
-	billConsumer kafka.IConsumer
-	producer     kafka.IProducer
+	repo              IRepo
+	billConsumer      kafka.IConsumer
+	inventoryConsumer kafka.IConsumer
+	producer          kafka.IProducer
 }
 
 func (s service) CreateOrder(ctx context.Context, order model.Order) (int64, error) {
@@ -46,7 +50,7 @@ func (s service) CreateOrder(ctx context.Context, order model.Order) (int64, err
 			return err
 		}
 		// INSERT EVENT INTO OUTBOX
-		content, err := json.Marshal(saga_event.CreatedOrderEvent{
+		content, err := json.Marshal(saga_event.OrderEvent{
 			OrderID:    id,
 			CustomerID: order.CustomerID,
 			ProductID:  order.ProductID,
@@ -99,7 +103,7 @@ func (s service) ConsumeBills(ctx context.Context, stopAfter time.Duration) {
 			fmt.Printf("Received message: Topic: %s, Partition: %d, Offset: %d, Key: %s, Value: %s\n",
 				msg.Topic, msg.Partition, msg.Offset, string(msg.Key), string(msg.Value),
 			)
-			var event saga_event.BillOrderEvent
+			var event saga_event.OrderEvent
 			err := json.Unmarshal(msg.Value, &event)
 			if err != nil {
 				panic(err)
@@ -122,4 +126,33 @@ func (s service) ConsumeBills(ctx context.Context, stopAfter time.Duration) {
 
 func (s service) UpdateStatus(ctx context.Context, orderID int64, status model.OrderStatus) error {
 	return s.repo.UpdateStatus(ctx, orderID, status)
+}
+
+func (s service) ConsumeInventory(ctx context.Context, stopAfter time.Duration) {
+	startTime := time.Now()
+	for {
+		select {
+		case msg := <-s.inventoryConsumer.Messages():
+			fmt.Printf("Received message: Topic: %s, Partition: %d, Offset: %d, Key: %s, Value: %s\n",
+				msg.Topic, msg.Partition, msg.Offset, string(msg.Key), string(msg.Value),
+			)
+			var event saga_event.OrderEvent
+			err := json.Unmarshal(msg.Value, &event)
+			if err != nil {
+				panic(err)
+				// mark message on queue as not done
+			}
+			err = s.UpdateStatus(ctx, event.OrderID, event.Status)
+			if err != nil {
+				panic(err)
+				// mark message on queue as not done
+			}
+		case err := <-s.inventoryConsumer.Errors():
+			log.Printf("Failed to consume message: %s", err)
+		default:
+			if stopAfter != 0 && time.Now().After(startTime.Add(stopAfter)) {
+				return
+			}
+		}
+	}
 }

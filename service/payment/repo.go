@@ -16,6 +16,7 @@ type IRepo interface {
 	CreateAccount(ctx context.Context, account model.Account) error
 	GetPendingOutbox(ctx context.Context, limit int) ([]model.Outbox, error)
 	MarkDoneOutboxes(ctx context.Context, ids []int64) error
+	GetAccount(ctx context.Context, customerID int64) (model.Account, error)
 }
 
 type repo struct {
@@ -115,4 +116,12 @@ func (r repo) MarkDoneOutboxes(ctx context.Context, ids []int64) error {
 
 	_, err = r.db.ExecContext(ctx, query, args...)
 	return err
+}
+
+var getAccountQuery = "SELECT * FROM accounts WHERE customer_id = ?"
+
+func (r repo) GetAccount(ctx context.Context, customerID int64) (model.Account, error) {
+	var res model.Account
+	err := r.db.GetContext(ctx, &res, getAccountQuery, customerID)
+	return res, err
 }
