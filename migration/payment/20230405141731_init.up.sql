@@ -14,4 +14,10 @@ create table `payment_outboxes`
     created_at timestamp default CURRENT_TIMESTAMP not null,
     updated_at timestamp ON UPDATE CURRENT_TIMESTAMP null,
     INDEX      status_idx (status)
-)
+);
+
+create table `processed_orders`
+(
+    order_id   int unique                          not null,
+    created_at timestamp default CURRENT_TIMESTAMP not null
+);

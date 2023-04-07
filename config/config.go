@@ -1,11 +1,13 @@
 package config
 
 type Config struct {
-	OrderConfig       ServiceConfig
-	PaymentConfig     ServiceConfig
-	InventoryConfig   ServiceConfig
-	KafkaHost         string
-	OrderCreatedTopic string
+	OrderConfig           ServiceConfig
+	PaymentConfig         ServiceConfig
+	InventoryConfig       ServiceConfig
+	KafkaHost             string
+	OrderCreatedTopic     string
+	PrepareInventoryTopic string
+	OrderBillTopic        string
 }
 
 type ServiceConfig struct {
@@ -30,6 +32,8 @@ var DefaultConfig = Config{
 		MigrationDir: "migration/payment",
 		DatabaseDSN:  "root:1@tcp(localhost:3306)/saga_payment?parseTime=true",
 	},
-	KafkaHost:         "localhost:29092",
-	OrderCreatedTopic: "ORDER_CREATED_TOPIC",
+	KafkaHost:             "localhost:29092",
+	OrderCreatedTopic:     "ORDER_CREATED_TOPIC",
+	PrepareInventoryTopic: "PREPARED_INVENTORY_TOPIC",
+	OrderBillTopic:        "ORDER_BILL_TOPIC",
 }

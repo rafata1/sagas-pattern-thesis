@@ -2,12 +2,14 @@ package model
 
 import "database/sql"
 
-type OrderStatus int
+type OrderStatus string
 
 const (
-	OrderPending   OrderStatus = 1
-	OrderCompleted OrderStatus = 2
-	OrderFailed    OrderStatus = 3
+	OrderStatusPending                 = "PENDING"
+	OrderStatusPrepared                = "PREPARED"
+	OrderStatusFailedOutOfStock        = "OUT_OF_STOCK"
+	OrderStatusBilled                  = "BILLED"
+	OrderStatusFailedExceedCreditLimit = "EXCEED_CREDIT_LIMIT"
 )
 
 type Order struct {
